@@ -5,13 +5,10 @@ namespace App\Containers\UserRegistration\UserContainer\Models;
 use App\Ship\Parents\Models\Model;
 use Tymon\JWTAuth\Contracts\JWTSubject;
 
-class UserContainer extends Model implements JWTSubject
+class Crud extends Model implements JWTSubject
 {
     protected $fillable = [
-        'fullname',
-        'email',
-        'password',
-        'mobile'
+        'title','description'
     ];
 
     protected $attributes = [
@@ -34,8 +31,7 @@ class UserContainer extends Model implements JWTSubject
     /**
      * A resource key to be used in the serialized responses.
      */
-    protected string $resourceKey = 'UserContainer';
-
+    protected string $resourceKey = 'Crud';
     public function getJWTIdentifier(){
         return $this->getKey();
     }
@@ -43,8 +39,7 @@ class UserContainer extends Model implements JWTSubject
     public function getJWTCustomClaims(){
         return [];
     }
-
-    public function crud(){
-        return $this->hasMany(Crud::class);
+    public function user(){
+        return $this->belongsTo(User::class);
     }
 }

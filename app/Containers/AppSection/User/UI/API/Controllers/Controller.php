@@ -13,6 +13,7 @@ use App\Containers\AppSection\User\Actions\GetAuthenticatedUserAction;
 use App\Containers\AppSection\User\Actions\RegisterUserAction;
 use App\Containers\AppSection\User\Actions\ResetPasswordAction;
 use App\Containers\AppSection\User\Actions\UpdateUserAction;
+use App\Containers\AppSection\User\Models\Display;
 use App\Containers\AppSection\User\UI\API\Requests\CreateAdminRequest;
 use App\Containers\AppSection\User\UI\API\Requests\DeleteUserRequest;
 use App\Containers\AppSection\User\UI\API\Requests\FindUserByIdRequest;
@@ -26,6 +27,14 @@ use App\Containers\AppSection\User\UI\API\Transformers\UserPrivateProfileTransfo
 use App\Containers\AppSection\User\UI\API\Transformers\UserTransformer;
 use App\Ship\Parents\Controllers\ApiController;
 use Illuminate\Http\JsonResponse;
+use App\Containers\AppSection\User\Models\User;
+use GuzzleHttp\Psr7\Message;
+use Illuminate\Http\Request;
+use Validator;
+use JWTAuth;
+use Tymon\JWTAuth\Payload;
+use DB;
+use Exception;
 
 class Controller extends ApiController
 {
@@ -93,5 +102,136 @@ class Controller extends ApiController
     {
         app(ForgotPasswordAction::class)->run($request);
         return $this->noContent(202);
+    }
+
+    public function register(Request $request)
+    {
+        $this->validate($request, [
+            'name'=>'required|string|between:3,15',
+            'email'=>'required|email|unique:users',
+            'password'=>'required|regex:/^(?=.*?[A-Z])(?=.*?[a-z])(?=.*?[0-9])(?=.*?[#?!@$%^&*-]).{6,}$/',
+            'gender'=>'required|string|between:3:10',
+            'birth'=>'required|string|between:3:10',
+            'device'=>'required|string|between:3:10',
+            'platform'=>'required|string|between:3:10'
+
+        ]);
+
+        $user = new User([
+            'name'=> $request->input('name'),
+            'email'=> $request->input('email'),
+            'password'=> bcrypt($request->input('password')),
+            'gender'=> $request->input('gender'),
+            'birth'=> $request->input('birth'),
+            'device'=> $request->input('device'),
+            'platform'=> $request->input('platform'),
+        ]);
+
+        $user->save();
+
+        return response()->json([
+            'message'=>'Successfully Created user'
+        ],201);
+     }
+
+     public function login(RegisterUserRequest $request)
+     {
+        $req = Validator::make($request->all(), [
+            'email' => 'required|email',
+            'password' => 'required|
+            min:5',
+        ]);
+
+        $email = $request->get('email');
+        $user = User::where('email', $email)->first();
+        
+            if (!$user) {
+            return response()->json(['status' => 400, 'message' => "Invalid credentials! email doesn't exists"]);
+        }
+        $token = JWTAuth::fromUser($user);
+        if(!$token){
+            return response()->json(['status' => 401, 'message' => 'Unauthenticated']);
+        }
+        return $this->generateToken($token);
+    }
+ 
+     public function generateToken($token)
+     {
+         return response()->json([
+             'status' => 201,
+             'message' => 'succesfully logged in',
+             'token' => $token
+         ]);
+     }
+
+    //  public function payload(){
+    //     $user=new Display();
+    //     $token=JWTAuth::getToken();
+    //     $id=JWTAuth::getPayload($token)->toArray();
+    //     $user->user_id = $id["sub"];
+    //     return DB::table('notes')->where('user_id', $user->user_id)->get();
+    //  }
+
+     public function uploadNote(Request $request)
+     {
+         $note = new Display();
+         $note->title = $request->input('title');
+         $note->description = $request->input('description');
+         $token=$request->bearerToken();
+         $tokenParts = explode(".", $token); 
+         $tokenPayload = base64_decode($tokenParts[1]);
+         $jwtPayload = json_decode($tokenPayload);
+         $note->user_id = $jwtPayload->sub;
+         $note->save();
+         return response()->json(['success' => 'note Added successfully']);
+     }
+     public function displayNote()
+     {
+        //  $user = new Display();
+        $user=User::all();
+         $token = JWTAuth::getToken();
+         $id = JWTAuth::getPayload($token)->toArray();
+         $user->user_id = $id["sub"];
+         return DB::table('notes')->where('user_id', $user->user_id)->get();
+     }
+     public function deleteNote($id){
+        $note = new Display();
+        $note->id = $id;
+        $token = JWTAuth::getToken();
+        $id = JWTAuth::getPayload($token)->toArray();
+        $note->user_id = $id["sub"];
+    //    return $note->id;
+        $noteId = Display::where('id', $note->id)->value('id');
+        // $noteId = Display::findOrFail($id);
+        $note->delete();
+        if($noteId == $note->id){
+            Display::where('id', $note->id)->delete();
+            return response()->json(['status' => 201, 'message' => 'note deleted successfully']);
+        }
+        return response()->json(['status' => 409, 'message' => 'No note is available with this given Id']);
+    }
+
+    public function updateNote(Request $request){
+        $note = new Display();
+        $note->id = $request->input('id');
+        // return $note->id;
+        $token = JWTAuth::getToken();
+        $id = JWTAuth::getPayload($token)->toArray();
+        $note->user_id = $id["sub"];
+
+        $userId = User::where('id', $note->user_id)->value('id');
+        if(!$userId){
+            return response()->json(['status' => 409,'message'=>'No admin is present in this id']);
+        }
+        $note->user_id = $userId;
+        $note->title = $request->input('title');
+        $note->description = $request->input('description');
+        // return $note;
+            Display::where('id',$note->id)->update(
+            ['title'=>$note->title,
+             'description'=>$note->description,
+            ]);   
+            // $note->save();         
+            return response()->json(['status' => 201, 'message' => 'note updated successfully']);
     }
 }

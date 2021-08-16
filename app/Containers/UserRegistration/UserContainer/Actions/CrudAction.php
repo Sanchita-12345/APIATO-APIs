@@ -2,20 +2,19 @@
 
 namespace App\Containers\UserRegistration\UserContainer\Actions;
 
-use App\Containers\UserRegistration\UserContainer\Models\UserContainer;
-use App\Containers\UserRegistration\UserContainer\Tasks\CreateUserContainerTask;
 use App\Ship\Parents\Actions\Action;
 use App\Ship\Parents\Requests\Request;
 use App\Containers\UserRegistration\UserContainer\Models\Crud;
+use App\Containers\UserRegistration\UserContainer\Tasks\CrudTask;
 
-class CreateUserContainerAction extends Action
+class CrudAction extends Action
 {
     public function run(Request $request): Crud
     {
+        // $var = app(Task::class)->run($arg1, $arg2);
         $data = $request->sanitizeInput([
             // add your request data here
         ]);
-
-        return app(CreateUserContainerTask::class)->run($data);
+        return app(CrudTask::class)->run($data);
     }
 }
